@@ -28,9 +28,6 @@ HANDLE hEvents_pipes[NUM][NUM] = { NULL };
 HANDLE hEvents1[NUM] = { NULL };
 HANDLE hEvents2[NUM] = { NULL };
 
-//FILE *F = NULL;
-string fname;
-clock_t uiTimeStart;
 
 
 // vvv ECDH vvv
@@ -350,11 +347,6 @@ int worker(int iThreadNumber, int iNumberOfNodes)
     mut_stdout.unlock();
 #endif // VERBOSE
     
-    mut_file.lock();
-    FILE *F = fopen(fname.c_str(), "w");
-    fprintf(F, "%d", clock() - uiTimeStart);
-    fclose(F);
-    mut_file.unlock();
 
     return 0;
 }
@@ -363,6 +355,8 @@ int worker(int iThreadNumber, int iNumberOfNodes)
 // argv[2] - experiment number
 int main(int argc, char* argv[])
 {
+    thread **threads = NULL;
+
     for (int i = 0; i < atoi(argv[1]); i++)
     {
         hEvents1[i] = CreateEvent(NULL, TRUE, FALSE, NULL);
@@ -374,21 +368,36 @@ int main(int argc, char* argv[])
         }
     }
 
-    uiTimeStart = clock();
 
-    fname = "time_";
+    string fname = "time_";
     fname += argv[2];
     fname += ".txt";
 
+    threads = new thread *[atoi(argv[1])];
+
+    clock_t uiTimeStart = clock();
     for (int i = 0; i < atoi(argv[1]); i++)
     {
-        thread tmp(worker, i, atoi(argv[1]));
-        tmp.detach();
+        //thread tmp(worker, i, atoi(argv[1]));
+        //tmp.detach();
+        threads[i] = new thread(worker, i, atoi(argv[1]));
     }
+    for (int i = 0; i < atoi(argv[1]); i++)
+    {
+        threads[i]->join();
+    }
+    clock_t uiTimeEnd = clock();
+    FILE* F = fopen(fname.c_str(), "w");
+    fprintf(F, "%d", uiTimeEnd - uiTimeStart);
+    fclose(F);
 
-
+    cout << uiTimeEnd - uiTimeStart << endl;
 
 #ifdef VERBOSE
     getchar();
 #endif // VERBOSE
+
+    delete[] threads;
+
+    return 0;
 }
