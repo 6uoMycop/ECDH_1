@@ -11,6 +11,14 @@
 #include "ecdh.h"
 
 
+
+#define CBC 0
+#define CTR 0
+#define ECB 1
+
+#include "AES.h"
+
+
 #define NUM 50
 #define BUFLEN 1024*3
 
@@ -18,17 +26,30 @@
 
 using namespace std;
 
-#ifdef VERBOSE
-mutex mut_stdout;
-#endif // VERBOSE
+//#ifdef VERBOSE
+//mutex mut_stdout;
+//#endif // VERBOSE
+mutex mut_stdout;//////////////////////////
 
 mutex mut_file;
+mutex mut_adj;
 
 HANDLE hEvents_pipes[NUM][NUM] = { NULL };
 HANDLE hEvents1[NUM] = { NULL };
 HANDLE hEvents2[NUM] = { NULL };
 
+int iAdjacencyMatrix[NUM][NUM] = { 0 };
 
+
+struct stAnonPipe
+{
+    HANDLE hReadPipe;
+    HANDLE hWritePipe;
+    int iNode0;
+    int iNode1;
+};
+
+stAnonPipe vAnonPipes[NUM][NUM];
 
 // vvv ECDH vvv
 
@@ -72,15 +93,6 @@ static void prng_init(uint32_t seed)
 // ^^^ ECDH ^^^
 
 
-struct stAnonPipe
-{
-    HANDLE hReadPipe;
-    HANDLE hWritePipe;
-    int iNode0;
-    int iNode1;
-};
-
-stAnonPipe vAnonPipes[NUM][NUM];
 
 BOOL sendTo(uint8_t *buffer, int iLen, int iNode0, int iNode1)
 {
@@ -251,6 +263,289 @@ void bob(stRez *Result, int iThreadNumber, int iNumberOfNodes)
     }
 }
 
+
+int iEstablishConnectionECDH(stRez* Result, int iNode0, int iNode1, int *initialized)
+{
+    if (iNode0 == iNode1)
+    {
+        return 1;
+    }
+    mut_adj.lock();
+    if (iNode0 < iNode1)
+    {
+        if (iAdjacencyMatrix[iNode0][iNode1] == 1)
+        {
+            mut_adj.unlock();
+            return 2;
+        }
+        else
+        {
+            iAdjacencyMatrix[iNode0][iNode1] = 1;
+        }
+    }
+    if (iNode0 > iNode1)
+    {
+        if (iAdjacencyMatrix[iNode1][iNode0] == 1)
+        {
+            mut_adj.unlock();
+            return 2;
+        }
+        else
+        {
+            iAdjacencyMatrix[iNode1][iNode0] = 1;
+        }
+    }
+    mut_adj.unlock();
+
+    mut_stdout.lock();
+    cout << "-> " << iNode0 << " " << iNode1 << endl;
+    mut_stdout.unlock();
+    //return 0;
+
+    uint8_t puba[ECC_PUB_KEY_SIZE];
+    uint8_t prva[ECC_PRV_KEY_SIZE];
+    uint8_t seca[ECC_PUB_KEY_SIZE];
+    uint8_t pubb[ECC_PUB_KEY_SIZE];
+    uint32_t i;
+
+    /* 0. Initialize and seed random number generator */
+    if (!*initialized)
+    {
+        ///prng_init((0xbad ^ 0xc0ffee ^ 42) | 0xcafebabe | 666);
+        srand(time(NULL));
+        prng_init(rand());
+        *initialized = 1;
+    }
+
+    /* 1. Alice picks a (secret) random natural number 'a', calculates P = a * g and sends P to Bob. */
+    for (i = 0; i < ECC_PRV_KEY_SIZE; ++i)
+    {
+        prva[i] = prng_next();
+    }
+    assert(ecdh_generate_keys(puba, prva));
+
+    sendTo(puba, ECC_PUB_KEY_SIZE, iNode0, iNode1);
+    SetEvent(hEvents_pipes[iNode0][iNode1]);
+
+
+    /* 2. Bob picks a (secret) random natural number 'b', calculates Q = b * g and sends Q to Alice. */
+    WaitForSingleObject(hEvents_pipes[iNode1][iNode0], INFINITE);
+    recvFrom(pubb, ECC_PUB_KEY_SIZE, iNode0, iNode1);
+
+
+
+    /* 3. Alice calculates S = a * Q = a * (b * g). */
+    assert(ecdh_shared_secret(prva, pubb, seca));
+
+
+    // Public to array
+    memcpy(Result->uiPubl[iNode1], puba, ECC_PUB_KEY_SIZE);
+    // Private
+    memcpy(Result->uiPriv[iNode1], prva, ECC_PRV_KEY_SIZE);
+    // Secret to array
+    memcpy(Result->uiSecr[iNode1], seca, ECC_PUB_KEY_SIZE);
+
+
+    /* 4. Bob calculates T = b * P = b * (a * g). */
+
+
+    /// /* 5. Assert equality, i.e. check that both parties calculated the same value. */
+
+//#ifdef VERBOSE
+    mut_stdout.lock();
+    cout << "Connection established: " << iNode0 << "<->" << iNode1 << endl;
+    mut_stdout.unlock();
+//#endif // VERBOSE
+
+    return 0;
+}
+
+int iAcceptConnectionECDH(stRez* Result, int iNode0, int iNode1, int *initialized)
+{
+    if (iNode0 == iNode1)
+    {
+        return 1;
+    }
+    mut_adj.lock();
+    if (iNode0 < iNode1)
+    {
+        if (iAdjacencyMatrix[iNode1][iNode0] == 1)
+        {
+            mut_adj.unlock();
+            return 2;
+        }
+        else
+        {
+            iAdjacencyMatrix[iNode1][iNode0] = 1;
+        }
+    }
+    else // if (iNode0 > iNode1)
+    {
+        if (iAdjacencyMatrix[iNode0][iNode1] == 1)
+        {
+            mut_adj.unlock();
+            return 2;
+        }
+        else
+        {
+            iAdjacencyMatrix[iNode0][iNode1] = 1;
+        }
+    }
+    mut_adj.unlock();
+
+    mut_stdout.lock();
+    cout << "<- " << iNode0 << " " << iNode1 << endl;
+    mut_stdout.unlock();
+    //return 0;
+
+    uint8_t puba[ECC_PUB_KEY_SIZE];
+    uint8_t pubb[ECC_PUB_KEY_SIZE];
+    uint8_t prvb[ECC_PRV_KEY_SIZE];
+    uint8_t secb[ECC_PUB_KEY_SIZE];
+    uint32_t i;
+
+    /* 0. Initialize and seed random number generator */
+    if (!*initialized)
+    {
+        ///prng_init((0xbad ^ 0xc0ffee ^ 42) | 0xcafebabe | 666);
+        srand(time(NULL));
+        prng_init(rand());
+        *initialized = 1;
+    }
+
+    /* 1. Alice picks a (secret) random natural number 'a', calculates P = a * g and sends P to Bob. */
+    WaitForSingleObject(hEvents_pipes[iNode1][iNode0], INFINITE);
+    recvFrom(puba, ECC_PUB_KEY_SIZE, iNode0, iNode1);
+
+
+    /* 2. Bob picks a (secret) random natural number 'b', calculates Q = b * g and sends Q to Alice. */
+    for (i = 0; i < ECC_PRV_KEY_SIZE; ++i)
+    {
+        prvb[i] = prng_next();
+    }
+    assert(ecdh_generate_keys(pubb, prvb));
+
+
+    sendTo(pubb, ECC_PUB_KEY_SIZE, iNode0, iNode1);
+    SetEvent(hEvents_pipes[iNode0][iNode1]);
+
+
+    /* 3. Alice calculates S = a * Q = a * (b * g). */
+
+
+    /* 4. Bob calculates T = b * P = b * (a * g). */
+    assert(ecdh_shared_secret(prvb, puba, secb));
+
+
+    // Public to array
+    memcpy(Result->uiPubl[iNode1], pubb, ECC_PUB_KEY_SIZE);
+    // Private
+    memcpy(Result->uiPriv[iNode1], prvb, ECC_PRV_KEY_SIZE);
+    // Secret to array
+    memcpy(Result->uiSecr[iNode1], secb, ECC_PUB_KEY_SIZE);
+
+
+    /// /* 5. Assert equality, i.e. check that both parties calculated the same value. *
+
+    return 0;
+}
+
+void alice2(stRez* Result, int iThreadNumber, int iNumberOfNodes, int iParameter, int *initialized)
+{
+    if ((iNumberOfNodes) % 2 == 0 && (iParameter + 1) % 2 == 1)
+    {
+        for (int j = 0; j < iNumberOfNodes; j++)
+        {
+            if (((iThreadNumber - j) + iNumberOfNodes) % iNumberOfNodes <= iParameter / 2)
+            {
+                iEstablishConnectionECDH(Result, iThreadNumber, j, initialized);
+            }
+        }
+        iEstablishConnectionECDH(Result, iThreadNumber, ((iThreadNumber + iNumberOfNodes / 2) + iNumberOfNodes) % iNumberOfNodes, initialized);
+    }
+    else if ((iNumberOfNodes) % 2 == 1 && (iParameter + 1) % 2 == 1)
+    {
+        for (int j = 0; j < iNumberOfNodes; j++)
+        {
+            if (((iThreadNumber - j) + iNumberOfNodes) % iNumberOfNodes <= iParameter / 2)
+            {
+                iEstablishConnectionECDH(Result, iThreadNumber, j, initialized);
+            }
+        }
+        if (iThreadNumber == 0)
+        {
+            iEstablishConnectionECDH(Result, iThreadNumber, (iNumberOfNodes - 1) / 2, initialized);
+            iEstablishConnectionECDH(Result, iThreadNumber, (iNumberOfNodes + 1) / 2, initialized);
+        }
+        else
+        {
+            iEstablishConnectionECDH(Result, iThreadNumber, iThreadNumber + (iNumberOfNodes + 1) / 2, initialized);
+        }
+    }
+    else
+    {
+        for (int j = 0; j < iNumberOfNodes; j++)
+        {
+            if (((iThreadNumber - j) + iNumberOfNodes) % iNumberOfNodes <= (iParameter + 1) / 2)
+            {
+                iEstablishConnectionECDH(Result, iThreadNumber, j, initialized);
+            }
+        }
+    }
+}
+
+void bob2(stRez* Result, int iThreadNumber, int iNumberOfNodes, int iParameter, int *initialized)
+{
+    if ((iNumberOfNodes) % 2 == 0 && (iParameter + 1) % 2 == 1)
+    {
+        for (int j = 0; j < iNumberOfNodes; j++)
+        //for (int j = iNumberOfNodes / 2; j < iNumberOfNodes; j++)
+        {
+            if (((j - iThreadNumber) + iNumberOfNodes) % iNumberOfNodes <= iParameter / 2)
+            {
+                iAcceptConnectionECDH(Result, iThreadNumber, j, initialized);
+            }
+            else if (iThreadNumber == ((j + iNumberOfNodes / 2) + iNumberOfNodes) % iNumberOfNodes)
+            {
+                iAcceptConnectionECDH(Result, iThreadNumber, ((j + iNumberOfNodes / 2) + iNumberOfNodes) % iNumberOfNodes, initialized);
+            }
+        }
+    }
+    else if ((iNumberOfNodes) % 2 == 1 && (iParameter + 1) % 2 == 1)
+    {
+        if (iThreadNumber == (iNumberOfNodes - 1) / 2)
+        {
+            iAcceptConnectionECDH(Result, iThreadNumber, 0, initialized);
+        }
+        else if (iThreadNumber == (iNumberOfNodes - 1) / 2)
+        {
+            iAcceptConnectionECDH(Result, iThreadNumber, 0, initialized);
+        }
+
+        for (int j = 0; j < iNumberOfNodes; j++)
+        //for (int j = iNumberOfNodes / 2; j < iNumberOfNodes; j++)
+        {
+            if ((((j - iThreadNumber) + iNumberOfNodes) % iNumberOfNodes <= iParameter / 2) || (j + (iNumberOfNodes + 1) / 2))
+            {
+                iAcceptConnectionECDH(Result, iThreadNumber, j, initialized);
+            }
+        }
+    }
+    else
+    {
+        for (int j = 0; j < iNumberOfNodes; j++)
+        //for (int j = iNumberOfNodes / 2; j < iNumberOfNodes; j++)
+        {
+            if (((j - iThreadNumber) + iNumberOfNodes) % iNumberOfNodes <= (iParameter + 1) / 2)
+            {
+                iAcceptConnectionECDH(Result, iThreadNumber, j, initialized);
+            }
+        }
+    }
+}
+
+
+
 //assumes little endian
 void printBits(size_t const size, void const* const ptr)
 {
@@ -269,7 +564,7 @@ void printBits(size_t const size, void const* const ptr)
     puts("");
 }
 
-int worker(int iThreadNumber, int iNumberOfNodes)
+int worker2(int iThreadNumber, int iNumberOfNodes, int iParameter)
 {
     SetEvent(hEvents1[iThreadNumber]);
     WaitForMultipleObjects(iNumberOfNodes, hEvents1, TRUE, INFINITE);
@@ -311,9 +606,26 @@ int worker(int iThreadNumber, int iNumberOfNodes)
     WaitForMultipleObjects(iNumberOfNodes, hEvents2, TRUE, INFINITE);
 
     stRez Result;
+    int initialized = 0;
+     
+    if (iThreadNumber % 2 == 0)
+    //if (iThreadNumber < iNumberOfNodes / 2)
+    {
+        alice2(&Result, iThreadNumber, iNumberOfNodes, iParameter, &initialized);
+        bob2(&Result, iThreadNumber, iNumberOfNodes, iParameter, &initialized);
+    }
+    else
+    {
+        bob2(&Result, iThreadNumber, iNumberOfNodes, iParameter, &initialized);
+        alice2(&Result, iThreadNumber, iNumberOfNodes, iParameter, &initialized);
+    }
 
-    alice(&Result, iThreadNumber);
-    bob(&Result, iThreadNumber, iNumberOfNodes);
+
+    //alice(&Result, iThreadNumber);
+    //bob(&Result, iThreadNumber, iNumberOfNodes);
+
+
+
 
 #ifdef VERBOSE
     mut_stdout.lock();
@@ -321,25 +633,10 @@ int worker(int iThreadNumber, int iNumberOfNodes)
     cout << "Thread " << iThreadNumber << ":" << endl;
     for (int i = 0; i < iNumberOfNodes; i++)
     {
-        if (i != iThreadNumber)
+        if (i != iThreadNumber && iAdjacencyMatrix[iThreadNumber][i] == 1)
         {
             cout << "To " << i << endl;
-            cout << "publ: ";
-            for (int j = 0; j < ECC_PUB_KEY_SIZE; j++)
-            {
-                printf("%u", Result.uiPubl[i][j]);
-            }
-            cout << endl << "priv: ";
-            for (int j = 0; j < ECC_PRV_KEY_SIZE; j++)
-            {
-                printf("%u", Result.uiPriv[i][j]);
-            }
-            cout << endl;
             cout << "secr: ";
-            //for (int j = 0; j < ECC_PUB_KEY_SIZE; j++)
-            //{
-            //    printf("%u ", Result.uiSecr[i][j]);
-            //}
             printBits(16, Result.uiSecr[i]);
             cout << endl << endl;
         }
@@ -352,7 +649,8 @@ int worker(int iThreadNumber, int iNumberOfNodes)
 }
 
 // argv[1] - total number of nodes
-// argv[2] - experiment number
+// argv[2] - parameter "t"
+// argv[3] - experiment ID
 int main(int argc, char* argv[])
 {
     thread **threads = NULL;
@@ -370,7 +668,7 @@ int main(int argc, char* argv[])
 
 
     string fname = "time_";
-    fname += argv[2];
+    fname += argv[3];
     fname += ".txt";
 
     threads = new thread *[atoi(argv[1])];
@@ -380,24 +678,34 @@ int main(int argc, char* argv[])
     {
         //thread tmp(worker, i, atoi(argv[1]));
         //tmp.detach();
-        threads[i] = new thread(worker, i, atoi(argv[1]));
+        threads[i] = new thread(worker2, i, atoi(argv[1]), atoi(argv[2]));
     }
     for (int i = 0; i < atoi(argv[1]); i++)
     {
         threads[i]->join();
     }
     clock_t uiTimeEnd = clock();
-    FILE* F = fopen(fname.c_str(), "w");
-    fprintf(F, "%d", uiTimeEnd - uiTimeStart);
+    FILE* F = fopen(fname.c_str(), "a+");
+    fprintf(F, "%d\n", uiTimeEnd - uiTimeStart);
     fclose(F);
 
     cout << uiTimeEnd - uiTimeStart << endl;
 
+    delete[] threads;
+
 #ifdef VERBOSE
+    cout << endl;
+    for (int i = 0; i < atoi(argv[1]); i++)
+    {
+        for (int j = 0; j < atoi(argv[1]); j++)
+        {
+            cout << iAdjacencyMatrix[i][j] << " ";
+        }
+        cout << endl;
+    }
     getchar();
 #endif // VERBOSE
 
-    delete[] threads;
 
     return 0;
 }
