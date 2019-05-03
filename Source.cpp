@@ -11,7 +11,7 @@
 #include "ecdh.h"
 
 
-#define NUM 50
+#define NUM 100
 #define BUFLEN 1024*3
 
 //#define VERBOSE
