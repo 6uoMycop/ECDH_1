@@ -264,36 +264,22 @@ void bob(stRez *Result, int iThreadNumber, int iNumberOfNodes)
 }
 
 
-int iEstablishConnectionECDH(stRez* Result, int iNode0, int iNode1, int *initialized)
+int iEstablishConnectionECDH(stRez* Result, int iNode0, int iNode1, int* initialized)
 {
     if (iNode0 == iNode1)
     {
         return 1;
     }
     mut_adj.lock();
-    if (iNode0 < iNode1)
+    if (iAdjacencyMatrix[iNode0][iNode1] == 1)
     {
-        if (iAdjacencyMatrix[iNode0][iNode1] == 1)
-        {
-            mut_adj.unlock();
-            return 2;
-        }
-        else
-        {
-            iAdjacencyMatrix[iNode0][iNode1] = 1;
-        }
+        mut_adj.unlock();
+        return 2;
     }
-    if (iNode0 > iNode1)
+    else
     {
-        if (iAdjacencyMatrix[iNode1][iNode0] == 1)
-        {
-            mut_adj.unlock();
-            return 2;
-        }
-        else
-        {
-            iAdjacencyMatrix[iNode1][iNode0] = 1;
-        }
+        iAdjacencyMatrix[iNode0][iNode1] = 2;
+        iAdjacencyMatrix[iNode1][iNode0] = 2;
     }
     mut_adj.unlock();
 
@@ -360,42 +346,42 @@ int iEstablishConnectionECDH(stRez* Result, int iNode0, int iNode1, int *initial
     return 0;
 }
 
-int iAcceptConnectionECDH(stRez* Result, int iNode0, int iNode1, int *initialized)
+int iAcceptConnectionECDH(stRez* Result, int iNode0, int iNode1, int* initialized)
 {
-    if (iNode0 == iNode1)
-    {
-        return 1;
-    }
-    mut_adj.lock();
-    if (iNode0 < iNode1)
-    {
-        if (iAdjacencyMatrix[iNode1][iNode0] == 1)
-        {
-            mut_adj.unlock();
-            return 2;
-        }
-        else
-        {
-            iAdjacencyMatrix[iNode1][iNode0] = 1;
-        }
-    }
-    else // if (iNode0 > iNode1)
-    {
-        if (iAdjacencyMatrix[iNode0][iNode1] == 1)
-        {
-            mut_adj.unlock();
-            return 2;
-        }
-        else
-        {
-            iAdjacencyMatrix[iNode0][iNode1] = 1;
-        }
-    }
-    mut_adj.unlock();
-
-    mut_stdout.lock();
-    cout << "<- " << iNode0 << " " << iNode1 << endl;
-    mut_stdout.unlock();
+    //if (iNode0 == iNode1)
+    //{
+    //    return 1;
+    //}
+    //mut_adj.lock();
+    //if (iNode0 < iNode1)
+    //{
+    //    if (iAdjacencyMatrix[iNode1][iNode0] == 1)
+    //    {
+    //        mut_adj.unlock();
+    //        return 2;
+    //    }
+    //    else
+    //    {
+    //        iAdjacencyMatrix[iNode1][iNode0] = 1;
+    //    }
+    //}
+    //else // if (iNode0 > iNode1)
+    //{
+    //    if (iAdjacencyMatrix[iNode0][iNode1] == 1)
+    //    {
+    //        mut_adj.unlock();
+    //        return 2;
+    //    }
+    //    else
+    //    {
+    //        iAdjacencyMatrix[iNode0][iNode1] = 1;
+    //    }
+    //}
+    //mut_adj.unlock();
+    //
+    //mut_stdout.lock();
+    //cout << "<- " << iNode0 << " " << iNode1 << endl;
+    //mut_stdout.unlock();
     //return 0;
 
     uint8_t puba[ECC_PUB_KEY_SIZE];
@@ -447,6 +433,13 @@ int iAcceptConnectionECDH(stRez* Result, int iNode0, int iNode1, int *initialize
 
     /// /* 5. Assert equality, i.e. check that both parties calculated the same value. *
 
+
+
+    mut_adj.lock();
+    iAdjacencyMatrix[iNode0][iNode1] = 1;
+    iAdjacencyMatrix[iNode1][iNode0] = 1;
+    mut_adj.unlock();
+
     return 0;
 }
 
@@ -460,6 +453,13 @@ void alice2(stRez* Result, int iThreadNumber, int iNumberOfNodes, int iParameter
             {
                 iEstablishConnectionECDH(Result, iThreadNumber, j, initialized);
             }
+            else
+            {
+                mut_adj.lock();
+                iAdjacencyMatrix[iThreadNumber][j] = -1;
+                iAdjacencyMatrix[j][iThreadNumber] = -1;
+                mut_adj.unlock();
+            }
         }
         iEstablishConnectionECDH(Result, iThreadNumber, ((iThreadNumber + iNumberOfNodes / 2) + iNumberOfNodes) % iNumberOfNodes, initialized);
     }
@@ -470,6 +470,13 @@ void alice2(stRez* Result, int iThreadNumber, int iNumberOfNodes, int iParameter
             if (((iThreadNumber - j) + iNumberOfNodes) % iNumberOfNodes <= iParameter / 2)
             {
                 iEstablishConnectionECDH(Result, iThreadNumber, j, initialized);
+            }
+            else
+            {
+                mut_adj.lock();
+                iAdjacencyMatrix[iThreadNumber][j] = -1;
+                iAdjacencyMatrix[j][iThreadNumber] = -1;
+                mut_adj.unlock();
             }
         }
         if (iThreadNumber == 0)
@@ -490,56 +497,85 @@ void alice2(stRez* Result, int iThreadNumber, int iNumberOfNodes, int iParameter
             {
                 iEstablishConnectionECDH(Result, iThreadNumber, j, initialized);
             }
+            else
+            {
+                mut_adj.lock();
+                iAdjacencyMatrix[iThreadNumber][j] = -1;
+                iAdjacencyMatrix[j][iThreadNumber] = -1;
+                mut_adj.unlock();
+            }
         }
     }
 }
 
 void bob2(stRez* Result, int iThreadNumber, int iNumberOfNodes, int iParameter, int *initialized)
 {
-    if ((iNumberOfNodes) % 2 == 0 && (iParameter + 1) % 2 == 1)
-    {
-        for (int j = 0; j < iNumberOfNodes; j++)
-        //for (int j = iNumberOfNodes / 2; j < iNumberOfNodes; j++)
-        {
-            if (((j - iThreadNumber) + iNumberOfNodes) % iNumberOfNodes <= iParameter / 2)
-            {
-                iAcceptConnectionECDH(Result, iThreadNumber, j, initialized);
-            }
-            else if (iThreadNumber == ((j + iNumberOfNodes / 2) + iNumberOfNodes) % iNumberOfNodes)
-            {
-                iAcceptConnectionECDH(Result, iThreadNumber, ((j + iNumberOfNodes / 2) + iNumberOfNodes) % iNumberOfNodes, initialized);
-            }
-        }
-    }
-    else if ((iNumberOfNodes) % 2 == 1 && (iParameter + 1) % 2 == 1)
-    {
-        if (iThreadNumber == (iNumberOfNodes - 1) / 2)
-        {
-            iAcceptConnectionECDH(Result, iThreadNumber, 0, initialized);
-        }
-        else if (iThreadNumber == (iNumberOfNodes - 1) / 2)
-        {
-            iAcceptConnectionECDH(Result, iThreadNumber, 0, initialized);
-        }
+    //if ((iNumberOfNodes) % 2 == 0 && (iParameter + 1) % 2 == 1)
+    //{
+    //    for (int j = 0; j < iNumberOfNodes; j++)
+    //    //for (int j = iNumberOfNodes / 2; j < iNumberOfNodes; j++)
+    //    {
+    //        if (((j - iThreadNumber) + iNumberOfNodes) % iNumberOfNodes <= iParameter / 2)
+    //        {
+    //            iAcceptConnectionECDH(Result, iThreadNumber, j, initialized);
+    //        }
+    //        else if (iThreadNumber == ((j + iNumberOfNodes / 2) + iNumberOfNodes) % iNumberOfNodes)
+    //        {
+    //            iAcceptConnectionECDH(Result, iThreadNumber, ((j + iNumberOfNodes / 2) + iNumberOfNodes) % iNumberOfNodes, initialized);
+    //        }
+    //    }
+    //}
+    //else if ((iNumberOfNodes) % 2 == 1 && (iParameter + 1) % 2 == 1)
+    //{
+    //    if (iThreadNumber == (iNumberOfNodes - 1) / 2)
+    //    {
+    //        iAcceptConnectionECDH(Result, iThreadNumber, 0, initialized);
+    //    }
+    //    else if (iThreadNumber == (iNumberOfNodes - 1) / 2)
+    //    {
+    //        iAcceptConnectionECDH(Result, iThreadNumber, 0, initialized);
+    //    }
+    //
+    //    for (int j = 0; j < iNumberOfNodes; j++)
+    //    //for (int j = iNumberOfNodes / 2; j < iNumberOfNodes; j++)
+    //    {
+    //        if ((((j - iThreadNumber) + iNumberOfNodes) % iNumberOfNodes <= iParameter / 2) || (j + (iNumberOfNodes + 1) / 2))
+    //        {
+    //            iAcceptConnectionECDH(Result, iThreadNumber, j, initialized);
+    //        }
+    //    }
+    //}
+    //else
+    //{
+    //    for (int j = 0; j < iNumberOfNodes; j++)
+    //    //for (int j = iNumberOfNodes / 2; j < iNumberOfNodes; j++)
+    //    {
+    //        if (((j - iThreadNumber) + iNumberOfNodes) % iNumberOfNodes <= (iParameter + 1) / 2)
+    //        {
+    //            iAcceptConnectionECDH(Result, iThreadNumber, j, initialized);
+    //        }
+    //    }
+    //}
 
-        for (int j = 0; j < iNumberOfNodes; j++)
-        //for (int j = iNumberOfNodes / 2; j < iNumberOfNodes; j++)
+    int flag;
+    while (1)
+    {
+        flag = 0;
+        for (int i = 0; i < iNumberOfNodes; i++)
         {
-            if ((((j - iThreadNumber) + iNumberOfNodes) % iNumberOfNodes <= iParameter / 2) || (j + (iNumberOfNodes + 1) / 2))
+            if (iThreadNumber != i)
             {
-                iAcceptConnectionECDH(Result, iThreadNumber, j, initialized);
+                iAcceptConnectionECDH(Result, iThreadNumber, i, initialized);
+                flag++;
+            }
+            else if (iAdjacencyMatrix[i][iThreadNumber] == -1 || iAdjacencyMatrix[i][iThreadNumber] == 1 || iThreadNumber == i)
+            {
+                flag++;
             }
         }
-    }
-    else
-    {
-        for (int j = 0; j < iNumberOfNodes; j++)
-        //for (int j = iNumberOfNodes / 2; j < iNumberOfNodes; j++)
+        if (flag == iNumberOfNodes)
         {
-            if (((j - iThreadNumber) + iNumberOfNodes) % iNumberOfNodes <= (iParameter + 1) / 2)
-            {
-                iAcceptConnectionECDH(Result, iThreadNumber, j, initialized);
-            }
+            break;
         }
     }
 }
