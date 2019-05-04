@@ -545,7 +545,7 @@ void vEstablishConnectionSharing(int iNode0, int iNode1, int iNumberOfNodes, uin
             uint8_t sec[SHARED_KEY_SIZE] = { 0 };
 
             WaitForSingleObject(hEvents_pipes[i][iNode0], INFINITE);
-            recvFrom(c, SHARED_KEY_SIZE, iNode0, i);
+            recvFrom(sec, SHARED_KEY_SIZE, iNode0, i);
             SetEvent(hEvents_pipes_recieved[i][iNode0]);
             ResetEvent(hEvents_pipes[i][iNode0]);
 
@@ -668,7 +668,7 @@ void vAcceptConnectionSharing(int iNode0, int iNode1, int iNumberOfNodes, uint8_
             uint8_t sec[SHARED_KEY_SIZE] = { 0 };
 
             WaitForSingleObject(hEvents_pipes[i][iNode0], INFINITE);
-            recvFrom(c, SHARED_KEY_SIZE, iNode0, i);
+            recvFrom(sec, SHARED_KEY_SIZE, iNode0, i);
             SetEvent(hEvents_pipes_recieved[i][iNode0]);
             ResetEvent(hEvents_pipes[i][iNode0]);
 
@@ -772,18 +772,10 @@ void vHelperSharing(int iNode0, int iNode1, int iHelperNode, int iNumberOfNodes)
         {
             if (i < iHelperNode)
             {
-                mut_stdout.lock();
-                cout << "(1) Node " << iHelperNode << " to " << i << endl;
-                mut_stdout.unlock();
-
                 sendTo(d1[i], SHARED_KEY_SIZE, iHelperNode, i);
                 SetEvent(hEvents_pipes[iHelperNode][i]);
                 WaitForSingleObject(hEvents_pipes_recieved[iHelperNode][i], INFINITE);
                 ResetEvent(hEvents_pipes_recieved[iHelperNode][i]);
-
-                mut_stdout.lock();
-                cout << "(2) Node " << iHelperNode << " to " << i << endl;
-                mut_stdout.unlock();
 
                 sendTo(d2[i], SHARED_KEY_SIZE, iHelperNode, i);
                 SetEvent(hEvents_pipes[iHelperNode][i]);
@@ -791,79 +783,38 @@ void vHelperSharing(int iNode0, int iNode1, int iHelperNode, int iNumberOfNodes)
                 ResetEvent(hEvents_pipes_recieved[iHelperNode][i]);
 
 
-                mut_stdout.lock();
-                cout << "    (1) Node " << iHelperNode << " waiting for " << i << endl;
-                mut_stdout.unlock();
-
                 WaitForSingleObject(hEvents_pipes[i][iHelperNode], INFINITE);
                 recvFrom(f[2 * i], SHARED_KEY_SIZE, iHelperNode, i);
                 SetEvent(hEvents_pipes_recieved[i][iHelperNode]);
                 ResetEvent(hEvents_pipes[i][iHelperNode]);
 
-                mut_stdout.lock();
-                cout << "(1) Node " << iHelperNode << " from " << i << endl;
-                mut_stdout.unlock();
-
-                mut_stdout.lock();
-                cout << "    (2) Node " << iHelperNode << " waiting for " << i << endl;
-                mut_stdout.unlock();
-
                 WaitForSingleObject(hEvents_pipes[i][iHelperNode], INFINITE);
                 recvFrom(f[2 * i + 1], SHARED_KEY_SIZE, iHelperNode, i);
                 SetEvent(hEvents_pipes_recieved[i][iHelperNode]);
                 ResetEvent(hEvents_pipes[i][iHelperNode]);
-
-                mut_stdout.lock();
-                cout << "(2) Node " << iHelperNode << " from " << i << endl;
-                mut_stdout.unlock();
             }
             else
             {
-                mut_stdout.lock();
-                cout << "    (1) Node " << iHelperNode << " waiting for " << i << endl;
-                mut_stdout.unlock();
-
                 WaitForSingleObject(hEvents_pipes[i][iHelperNode], INFINITE);
                 recvFrom(f[2 * i], SHARED_KEY_SIZE, iHelperNode, i);
                 SetEvent(hEvents_pipes_recieved[i][iHelperNode]);
                 ResetEvent(hEvents_pipes[i][iHelperNode]);
-
-                mut_stdout.lock();
-                cout << "(1) Node " << iHelperNode << " from " << i << endl;
-                mut_stdout.unlock();
-
-                mut_stdout.lock();
-                cout << "    (2) Node " << iHelperNode << " waiting for " << i << endl;
-                mut_stdout.unlock();
 
                 WaitForSingleObject(hEvents_pipes[i][iHelperNode], INFINITE);
                 recvFrom(f[2 * i + 1], SHARED_KEY_SIZE, iHelperNode, i);
                 SetEvent(hEvents_pipes_recieved[i][iHelperNode]);
                 ResetEvent(hEvents_pipes[i][iHelperNode]);
 
-                mut_stdout.lock();
-                cout << "(2) Node " << iHelperNode << " from " << i << endl;
-                mut_stdout.unlock();
-
-
-                mut_stdout.lock();
-                cout << "(1) Node " << iHelperNode << " to " << i << endl;
-                mut_stdout.unlock();
 
                 sendTo(d1[i], SHARED_KEY_SIZE, iHelperNode, i);
                 SetEvent(hEvents_pipes[iHelperNode][i]);
                 WaitForSingleObject(hEvents_pipes_recieved[iHelperNode][i], INFINITE);
                 ResetEvent(hEvents_pipes_recieved[iHelperNode][i]);
 
-                mut_stdout.lock();
-                cout << "(2) Node " << iHelperNode << " to " << i << endl;
-                mut_stdout.unlock();
-
                 sendTo(d2[i], SHARED_KEY_SIZE, iHelperNode, i);
                 SetEvent(hEvents_pipes[iHelperNode][i]);
                 WaitForSingleObject(hEvents_pipes_recieved[iHelperNode][i], INFINITE);
                 ResetEvent(hEvents_pipes_recieved[iHelperNode][i]);
-
             }
         }
     }
