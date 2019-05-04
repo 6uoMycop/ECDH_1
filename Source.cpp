@@ -512,11 +512,16 @@ void vEstablishConnectionSharing(int iNode0, int iNode1, int iNumberOfNodes, uin
 
 
     uint8_t toSend[SHARED_KEY_SIZE] = { 0 };
+    for (int j = 0; j < SHARED_KEY_SIZE; j++)
+    {
+        toSend[j] = key[j] ^ b[iNode0][j] ^ c[j];
+    }
+
     for (int i = 0; i < iNumberOfNodes; i++)
     {
         for (int j = 0; j < SHARED_KEY_SIZE; j++)
         {
-            toSend[j] = key[j] ^ b[iNode0][j] ^ c[j] ^ A[2 * i][j]; // чет
+            toSend[j] ^= A[2 * i + 1][j]; // нечет
         }
     }
 
@@ -555,7 +560,7 @@ void vEstablishConnectionSharing(int iNode0, int iNode1, int iNumberOfNodes, uin
     {
         for (int j = 0; j < SHARED_KEY_SIZE; j++)
         {
-            secret[j] ^= key[j] ^ b[iNode0][j] ^ c[j] ^ A[2 * i + 1][j]; // нечет
+            secret[j] ^= key[j] ^ b[iNode0][j] ^ c[j] ^ A[2 * i][j]; // чет
         }
     }
 
@@ -636,11 +641,16 @@ void vAcceptConnectionSharing(int iNode0, int iNode1, int iNumberOfNodes, uint8_
     ResetEvent(hEvents_pipes[iNode1][iNode0]);
 
     uint8_t toSend[SHARED_KEY_SIZE] = { 0 };
+    for (int j = 0; j < SHARED_KEY_SIZE; j++)
+    {
+        toSend[j] = key[j] ^ b[iNode0][j] ^ c[j];
+    }
+
     for (int i = 0; i < iNumberOfNodes; i++)
     {
         for (int j = 0; j < SHARED_KEY_SIZE; j++)
         {
-            toSend[j] = key[j] ^ b[iNode0][j] ^ c[j] ^ A[2 * i + 1][j]; // нечет
+            toSend[j] ^= A[2 * i][j]; // чет
         }
     }
 
@@ -673,7 +683,7 @@ void vAcceptConnectionSharing(int iNode0, int iNode1, int iNumberOfNodes, uint8_
     {
         for (int j = 0; j < SHARED_KEY_SIZE; j++)
         {
-            secret[j] ^= key[j] ^ b[iNode0][j] ^ c[j] ^ A[2 * i][j]; // чет
+            secret[j] ^= key[j] ^ b[iNode0][j] ^ c[j] ^ A[2 * i + 1][j]; // нечет
         }
     }
 
