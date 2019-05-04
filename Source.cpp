@@ -149,6 +149,10 @@ BOOL recvFrom(uint8_t *buffer, int iLen, int iNode0, int iNode1)
         NULL
     );
 
+    mut_stdout.lock();
+    cout << "Thread " << iNode0 << ": from " << iNode1 << ": " << unsigned(buffer[0]) << endl;
+    mut_stdout.unlock();
+
 #ifdef VERBOSE
     //mut_stdout.lock();
     //cout << "Thread " << iNode0 << ": from " << iNode1 << " ";
@@ -471,7 +475,13 @@ void vEstablishConnectionSharing(int iNode0, int iNode1, int iNumberOfNodes, uin
             b[i][j] = prng_next();
             B[j] ^= b[i][j];
         }
+        mut_stdout.lock();
+        cout << "Node " << iNode0 << ": b[" << i << "]=" << unsigned(b[i][0]) << endl;
+        mut_stdout.unlock();
     }
+    mut_stdout.lock();
+    cout << "Node " << iNode0 << ": B=" << unsigned(B[0]) << endl;
+    mut_stdout.unlock();
 
     for (int i = 0; i < iNumberOfNodes; i++)
     {
@@ -498,7 +508,7 @@ void vEstablishConnectionSharing(int iNode0, int iNode1, int iNumberOfNodes, uin
         if (i != iNode0 && i != iNode1)
         {
             WaitForSingleObject(hEvents_pipes[i][iNode0], INFINITE);
-            recvFrom(A[2 * i],     SHARED_KEY_SIZE, iNode0, i);
+            recvFrom(A[2 * i], SHARED_KEY_SIZE, iNode0, i);
             SetEvent(hEvents_pipes_recieved[i][iNode0]);
             ResetEvent(hEvents_pipes[i][iNode0]);
 
@@ -506,9 +516,17 @@ void vEstablishConnectionSharing(int iNode0, int iNode1, int iNumberOfNodes, uin
             recvFrom(A[2 * i + 1], SHARED_KEY_SIZE, iNode0, i);
             SetEvent(hEvents_pipes_recieved[i][iNode0]);
             ResetEvent(hEvents_pipes[i][iNode0]);
+
         }
     }
 
+    mut_stdout.lock();
+    for (int i = 0; i < iNumberOfNodes; i++)
+    {
+        cout << "Node " << iNode0 << ": A[2*" << i << "]=" << unsigned(A[2 * i][0]) << endl;
+        cout << "Node " << iNode0 << ": A[2*" << i << "+1]=" << unsigned(A[2 * i + 1][0]) << endl;
+    }
+    mut_stdout.unlock();
 
 
     uint8_t toSend[SHARED_KEY_SIZE] = { 0 };
@@ -517,6 +535,14 @@ void vEstablishConnectionSharing(int iNode0, int iNode1, int iNumberOfNodes, uin
         toSend[j] = key[j] ^ b[iNode0][j] ^ c[j];
     }
 
+
+    mut_stdout.lock();
+    cout << "Node " << iNode0 << ": key=" << unsigned(key[0]) << endl << "b=" << unsigned(b[iNode0][0]) << endl << "c=" << unsigned(c[0]) << endl << "toSend=" << unsigned(toSend[0]) << endl;
+    mut_stdout.unlock();
+
+
+
+
     for (int i = 0; i < iNumberOfNodes; i++)
     {
         for (int j = 0; j < SHARED_KEY_SIZE; j++)
@@ -524,6 +550,10 @@ void vEstablishConnectionSharing(int iNode0, int iNode1, int iNumberOfNodes, uin
             toSend[j] ^= A[2 * i + 1][j]; // нечет
         }
     }
+    mut_stdout.lock();
+    cout << "Node " << iNode0 << ": toSend=" << unsigned(toSend[0]) << endl;
+    mut_stdout.unlock();
+
 
     sendTo(toSend, SHARED_KEY_SIZE, iNode0, iNode1);
     SetEvent(hEvents_pipes[iNode0][iNode1]);
@@ -536,6 +566,9 @@ void vEstablishConnectionSharing(int iNode0, int iNode1, int iNumberOfNodes, uin
     SetEvent(hEvents_pipes_recieved[iNode1][iNode0]);
     ResetEvent(hEvents_pipes[iNode1][iNode0]);
 
+    mut_stdout.lock();
+    cout << "Node " << iNode0 << ": recieved=" << unsigned(secret[0]) << endl;
+    mut_stdout.unlock();
 
 
     for (int i = 0; i < iNumberOfNodes; i++)
@@ -555,18 +588,31 @@ void vEstablishConnectionSharing(int iNode0, int iNode1, int iNumberOfNodes, uin
             }
         }
     }
+    mut_stdout.lock();
+    cout << "Node " << iNode0 << ": secret^sec[j]=" << unsigned(secret[0]) << endl;
+    mut_stdout.unlock();
+
+    for (int j = 0; j < SHARED_KEY_SIZE; j++)
+    {
+        secret[j] ^= key[j] ^ b[iNode0][j] ^ c[j];
+    }
+
+    mut_stdout.lock();
+    cout << "Node " << iNode0 << ": secret^..^..^=" << unsigned(secret[0]) << endl;
+    mut_stdout.unlock();
 
     for (int i = 0; i < iNumberOfNodes; i++)
     {
         for (int j = 0; j < SHARED_KEY_SIZE; j++)
         {
-            secret[j] ^= key[j] ^ b[iNode0][j] ^ c[j] ^ A[2 * i][j]; // чет
+            secret[j] ^= A[2 * i][j]; // чет
         }
     }
 
     mut_stdout.lock();
     cout << "Node " << iNode0 << ": FINISH ";
-    printBits(SHARED_KEY_SIZE, secret);
+    cout << unsigned(secret[0]);
+    //printBits(SHARED_KEY_SIZE, secret);
     cout << endl;
     mut_stdout.unlock();
 }
@@ -592,7 +638,13 @@ void vAcceptConnectionSharing(int iNode0, int iNode1, int iNumberOfNodes, uint8_
             b[i][j] = prng_next();
             B[j] ^= b[i][j];
         }
+        mut_stdout.lock();
+        cout << "Node " << iNode0 << ": b[" << i << "]=" << unsigned(b[i][0]) << endl;
+        mut_stdout.unlock();
     }
+    mut_stdout.lock();
+    cout << "Node " << iNode0 << ": B=" << unsigned(B[0]) << endl;
+    mut_stdout.unlock();
 
 
 
@@ -634,6 +686,13 @@ void vAcceptConnectionSharing(int iNode0, int iNode1, int iNumberOfNodes, uint8_
         }
     }
 
+    mut_stdout.lock();
+    for (int i = 0; i < iNumberOfNodes; i++)
+    {
+        cout << "Node " << iNode0 << ": A[2*" << i << "]=" << unsigned(A[2 * i][0]) << endl;
+        cout << "Node " << iNode0 << ": A[2*" << i << "+1]=" << unsigned(A[2 * i + 1][0]) << endl;
+    }
+    mut_stdout.unlock();
 
     WaitForSingleObject(hEvents_pipes[iNode1][iNode0], INFINITE);
     recvFrom(secret, SHARED_KEY_SIZE, iNode0, iNode1);
@@ -646,6 +705,12 @@ void vAcceptConnectionSharing(int iNode0, int iNode1, int iNumberOfNodes, uint8_
         toSend[j] = key[j] ^ b[iNode0][j] ^ c[j];
     }
 
+
+
+    mut_stdout.lock();
+    cout << "Node " << iNode0 << ": key=" << unsigned(key[0]) << endl << "b=" << unsigned(b[iNode0][0]) << endl << "c=" << unsigned(c[0]) << endl << "toSend=" << unsigned(toSend[0]) << endl;
+    mut_stdout.unlock();
+
     for (int i = 0; i < iNumberOfNodes; i++)
     {
         for (int j = 0; j < SHARED_KEY_SIZE; j++)
@@ -653,6 +718,9 @@ void vAcceptConnectionSharing(int iNode0, int iNode1, int iNumberOfNodes, uint8_
             toSend[j] ^= A[2 * i][j]; // чет
         }
     }
+    mut_stdout.lock();
+    cout << "Node " << iNode0 << ": toSend=" << unsigned(toSend[0]) << endl;
+    mut_stdout.unlock();
 
     sendTo(toSend, SHARED_KEY_SIZE, iNode0, iNode1);
     SetEvent(hEvents_pipes[iNode0][iNode1]);
@@ -679,18 +747,32 @@ void vAcceptConnectionSharing(int iNode0, int iNode1, int iNumberOfNodes, uint8_
         }
     }
 
+    mut_stdout.lock();
+    cout << "Node " << iNode0 << ": secret^sec[j]=" << unsigned(secret[0]) << endl;
+    mut_stdout.unlock();
+
+    for (int j = 0; j < SHARED_KEY_SIZE; j++)
+    {
+        secret[j] ^= key[j] ^ b[iNode0][j] ^ c[j];
+    }
+
+    mut_stdout.lock();
+    cout << "Node " << iNode0 << ": secret^..^..^=" << unsigned(secret[0]) << endl;
+    mut_stdout.unlock();
+
     for (int i = 0; i < iNumberOfNodes; i++)
     {
         for (int j = 0; j < SHARED_KEY_SIZE; j++)
         {
-            secret[j] ^= key[j] ^ b[iNode0][j] ^ c[j] ^ A[2 * i + 1][j]; // нечет
+            secret[j] ^= A[2 * i + 1][j]; // нечет
         }
     }
 
 
     mut_stdout.lock();
     cout << "Node " << iNode0 << ": FINISH ";
-    printBits(SHARED_KEY_SIZE, secret);
+    cout << unsigned(secret[0]);
+    //printBits(SHARED_KEY_SIZE, secret);
     cout << endl;
     mut_stdout.unlock();
 }
@@ -716,7 +798,13 @@ void vHelperSharing(int iNode0, int iNode1, int iHelperNode, int iNumberOfNodes)
             d1[i][j] = prng_next();
             D[j] ^= d1[i][j];
         }
+        mut_stdout.lock();
+        cout << "Node " << iHelperNode << ": d1[" << i << "]=" << unsigned(d1[i][0]) << endl;
+        mut_stdout.unlock();
     }
+    mut_stdout.lock();
+    cout << "Node " << iHelperNode << ":D=" << unsigned(D[0]) << endl;
+    mut_stdout.unlock();
 
     uint8_t D2[SHARED_KEY_SIZE] = { 0 };
     uint8_t d2[NUM][SHARED_KEY_SIZE] = { 0 };
@@ -727,11 +815,20 @@ void vHelperSharing(int iNode0, int iNode1, int iHelperNode, int iNumberOfNodes)
             d2[i][j] = prng_next();
             D2[j] ^= d2[i][j];
         }
+        mut_stdout.lock();
+        cout << "Node " << iHelperNode << ": d2[" << i << "]=" << unsigned(d2[i][0]) << endl;
+        mut_stdout.unlock();
     }
+    mut_stdout.lock();
+    cout << "Node " << iHelperNode << ": D2=" << unsigned(D2[0]) << endl;
+    mut_stdout.unlock();
     for (int i = 0; i < SHARED_KEY_SIZE; i++)
     {
         d2[iNumberOfNodes - 1][i] = D[i] ^ D2[i];
     }
+    mut_stdout.lock();
+    cout << "Node " << iHelperNode << ": d2[" << iNumberOfNodes - 1 << "]=" << unsigned(d2[iNumberOfNodes - 1][0]) << endl;
+    mut_stdout.unlock();
 
     uint8_t c[SHARED_KEY_SIZE] = { 0 };
     uint8_t b[SHARED_KEY_SIZE] = { 0 };
@@ -752,12 +849,12 @@ void vHelperSharing(int iNode0, int iNode1, int iHelperNode, int iNumberOfNodes)
 
     for (int i = 0, iNode = iNode0; i < 2; i++)
     {
-        sendTo(d1[i], SHARED_KEY_SIZE, iHelperNode, iNode);
+        sendTo(d1[iNode], SHARED_KEY_SIZE, iHelperNode, iNode);
         SetEvent(hEvents_pipes[iHelperNode][iNode]);
         WaitForSingleObject(hEvents_pipes_recieved[iHelperNode][iNode], INFINITE);
         ResetEvent(hEvents_pipes_recieved[iHelperNode][iNode]);
 
-        sendTo(d2[i], SHARED_KEY_SIZE, iHelperNode, iNode);
+        sendTo(d2[iNode], SHARED_KEY_SIZE, iHelperNode, iNode);
         SetEvent(hEvents_pipes[iHelperNode][iNode]);
         WaitForSingleObject(hEvents_pipes_recieved[iHelperNode][iNode], INFINITE);
         ResetEvent(hEvents_pipes_recieved[iHelperNode][iNode]);
@@ -821,24 +918,49 @@ void vHelperSharing(int iNode0, int iNode1, int iHelperNode, int iNumberOfNodes)
 
 
     uint8_t toSend[SHARED_KEY_SIZE] = { 0 };
+    for (int j = 0; j < SHARED_KEY_SIZE; j++)
+    {
+        toSend[j] = key[j] ^ b[j] ^ c[j] ^ d1[iHelperNode][j];
+    }
+
+    mut_stdout.lock();
+    cout << "Node " << iHelperNode << ": key=" << unsigned(key[0]) << endl << "b=" << unsigned(b[0]) << endl << "c=" << unsigned(c[0]) << endl << "d1=" << unsigned(d1[iHelperNode][0]) << endl << "toSend=" << unsigned(toSend[0]) << endl;
+    for (int i = 0; i < iNumberOfNodes * 2; i++)
+    {
+        cout << "f[" << i << "]=" << unsigned(f[i][0]) << endl;
+    }
+    mut_stdout.unlock();
+
+
+
     for (int i = 0; i < iNumberOfNodes; i++)
     {
         for (int j = 0; j < SHARED_KEY_SIZE; j++)
         {
-            toSend[j] = key[j] ^ b[j] ^ c[j] ^ d1[iHelperNode][j] ^ f[2 * i][j]; // чет
+            toSend[j] ^= f[2 * i][j]; // чет
         }
     }
+
     sendTo(toSend, SHARED_KEY_SIZE, iHelperNode, iNode1);
     SetEvent(hEvents_pipes[iHelperNode][iNode1]);
     WaitForSingleObject(hEvents_pipes_recieved[iHelperNode][iNode1], INFINITE);
     ResetEvent(hEvents_pipes_recieved[iHelperNode][iNode1]);
 
     ZeroMemory(toSend, SHARED_KEY_SIZE);
+    for (int j = 0; j < SHARED_KEY_SIZE; j++)
+    {
+        toSend[j] = key[j] ^ b[j] ^ c[j] ^ d2[iHelperNode][j];
+    }
+
+    mut_stdout.lock();
+    cout << "Node " << iHelperNode << ": key=" << unsigned(key[0]) << endl << "b=" << unsigned(b[0]) << endl << "c=" << unsigned(c[0]) << endl << "d2=" << unsigned(d2[iHelperNode][0]) << endl << "toSend=" << unsigned(toSend[0]) << endl;
+    mut_stdout.unlock();
+
     for (int i = 0; i < iNumberOfNodes; i++)
     {
         for (int j = 0; j < SHARED_KEY_SIZE; j++)
         {
-            toSend[j] = key[j] ^ b[j] ^ c[j] ^ d2[iHelperNode][j] ^ f[2 * i + 1][j]; // нечет
+            toSend[j] ^= f[2 * i + 1][j]; // нечет
         }
     }
     sendTo(toSend, SHARED_KEY_SIZE, iHelperNode, iNode0);
@@ -999,7 +1121,7 @@ void vSetSharing(int iThreadNumber, int iNumberOfNodes, int iParameter, stSecret
             WaitForSingleObject(hEvent_initiatorEnd, INFINITE);
             WaitForSingleObject(hEvent_recieverEnd, INFINITE);
 
-            Sleep(50);
+            Sleep(150);
             for (int k = 0; k < iNumberOfNodes - 2; k++)
             {
                 ResetEvent(hEvents_helpers[k]);
